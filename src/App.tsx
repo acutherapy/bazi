@@ -1,212 +1,127 @@
-import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Button, Space, Card, Row, Col, Select, Form, Progress, Table, Divider } from 'antd';
-import { Lunar } from 'lunar-javascript';
-import './App.css';
-import EnergyDNA from './components/EnergyDNA';
-import { FIVE_ELEMENTS_COLORS } from './constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Layout, Typography, Row, Col, Form, Card, Divider } from 'antd';
 import { useTranslation } from 'react-i18next';
+import './App.css';
+import { useBazi, BirthDateTime, BaziResult, FiveElementStat, FIVE_ELEMENTS_EN } from './hooks/useBazi';
+import { FIVE_ELEMENTS_COLORS } from './constants';
+import NatalSection from './components/NatalSection';
+import CurrentSection from './components/CurrentSection';
+import EnergyDNA from './components/EnergyDNA';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 
-// 天干
-const HEAVENLY_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'] as const;
+// Combined Analysis Component (Internal for now)
+const CombinedAnalysis: React.FC<{
+  birthStats: FiveElementStat[];
+  currentStats: FiveElementStat[];
+  imbalance: any;
+}> = ({ birthStats, currentStats, imbalance }) => {
+  const { t } = useTranslation();
+  const { deviations, totalImbalance, overallStatus } = imbalance;
+  // Calculate combined stats for display if needed, but we used the passed imbalance which is based on combined
 
-// 地支
-const EARTHLY_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'] as const;
+  return (
+    <Card title={t('Combined Five Elements Analysis')} bordered={false} className="glass-card" style={{ marginTop: '24px', background: 'rgba(255,255,255,0.6)' }}>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Title level={5}>{t('Element Distribution')}</Title>
+          {/* We can iterate over birthStats keys since elements are same */}
+          {birthStats.map(stat => {
+            const element = stat.element;
+            const birthElement = birthStats.find(s => s.element === element);
+            const currentElement = currentStats.find(s => s.element === element);
+            const deviation = deviations.find((d: any) => d.element === element);
 
-// 时辰对照表
-const CHINESE_HOURS = [
-  { branch: '子', label: '子时 23:00-00:59', value: 23 },
-  { branch: '丑', label: '丑时 01:00-02:59', value: 1 },
-  { branch: '寅', label: '寅时 03:00-04:59', value: 3 },
-  { branch: '卯', label: '卯时 05:00-06:59', value: 5 },
-  { branch: '辰', label: '辰时 07:00-08:59', value: 7 },
-  { branch: '巳', label: '巳时 09:00-10:59', value: 9 },
-  { branch: '午', label: '午时 11:00-12:59', value: 11 },
-  { branch: '未', label: '未时 13:00-14:59', value: 13 },
-  { branch: '申', label: '申时 15:00-16:59', value: 15 },
-  { branch: '酉', label: '酉时 17:00-18:59', value: 17 },
-  { branch: '戌', label: '戌时 19:00-20:59', value: 19 },
-  { branch: '亥', label: '亥时 21:00-22:59', value: 21 }
-] as const;
+            if (!birthElement || !currentElement) return null;
 
-// 五行
-const FIVE_ELEMENTS_MAP = {
-  '甲': '木', '乙': '木',
-  '丙': '火', '丁': '火',
-  '戊': '土', '己': '土',
-  '庚': '金', '辛': '金',
-  '壬': '水', '癸': '水',
-  '子': '水', '丑': '土',
-  '寅': '木', '卯': '木',
-  '辰': '土', '巳': '火',
-  '午': '火', '未': '土',
-  '申': '金', '酉': '金',
-  '戌': '土', '亥': '水'
-} as const;
+            return (
+              <div key={element} style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                <Text strong style={{ width: '60px' }}>
+                  {/* @ts-ignore */}
+                  {t(FIVE_ELEMENTS_EN[element])}:
+                </Text>
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.03)',
+                  borderRadius: '12px',
+                  minHeight: '32px',
+                  padding: '4px 8px',
+                  marginRight: '8px'
+                }}>
+                  {/* Natal (Circle) */}
+                  {Array.from({ length: birthElement.count }).map((_, idx) => (
+                    <div
+                      key={`birth-${idx}`}
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
+                        borderRadius: '50%',
+                        marginRight: '4px',
+                        display: 'inline-block',
+                        border: '1px solid rgba(0,0,0,0.1)'
+                      }}
+                      title="Natal"
+                    />
+                  ))}
+                  {/* Current (Square) */}
+                  {Array.from({ length: currentElement.count }).map((_, idx) => (
+                    <div
+                      key={`current-${idx}`}
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
+                        borderRadius: '2px', // Square-ish
+                        marginRight: '4px',
+                        display: 'inline-block',
+                        border: '1px solid rgba(0,0,0,0.1)'
+                      }}
+                      title="Current"
+                    />
+                  ))}
+                </div>
+                <div style={{ minWidth: '140px', textAlign: 'right' }}>
+                  <Text type={deviation?.status === 'Balanced' ? 'success' :
+                    (deviation?.status === 'Slightly High' || deviation?.status === 'Slightly Low') ? 'warning' : 'danger'}>
+                    {t(deviation?.status)} ({deviation?.deviationPercentage > 0 ? '+' : ''}{deviation?.deviationPercentage}%)
+                  </Text>
+                </div>
+              </div>
+            );
+          })}
 
-// 月干支表（按节气）
-const MONTH_STEMS = {
-  "甲己": ["丙寅", "丁卯", "戊辰", "己巳", "庚午", "辛未", "壬申", "癸酉", "甲戌", "乙亥", "丙子", "丁丑"],
-  "乙庚": ["戊寅", "己卯", "庚辰", "辛巳", "壬午", "癸未", "甲申", "乙酉", "丙戌", "丁亥", "戊子", "己丑"],
-  "丙辛": ["庚寅", "辛卯", "壬辰", "癸巳", "甲午", "乙未", "丙申", "丁酉", "戊戌", "己亥", "庚子", "辛丑"],
-  "丁壬": ["壬寅", "癸卯", "甲辰", "乙巳", "丙午", "丁未", "戊申", "己酉", "庚戌", "辛亥", "壬子", "癸丑"],
-  "戊癸": ["甲寅", "乙卯", "丙辰", "丁巳", "戊午", "己未", "庚申", "辛酉", "壬戌", "癸亥", "甲子", "乙丑"]
-} as const;
-
-interface BirthDateTime {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-}
-
-interface BaziResult {
-  year: [string, string];
-  month: [string, string];
-  day: [string, string];
-  hour: [string, string];
-  solarDate: string;
-  lunarDate: string;
-  fiveElements: {
-    year: [string, string];
-    month: [string, string];
-    day: [string, string];
-    hour: [string, string];
-  };
-}
-
-// 五行理想比例
-const IDEAL_RATIO = 0.2; // 20%
-
-interface FiveElementStat {
-  element: string;
-  count: number;
-  percentage: number;
-}
-
-interface DeviationResult {
-  element: string;
-  deviation: number;
-  deviationPercentage: number;
-  status: string;
-}
-
-// 计算五行失衡度
-const calculateImbalance = (stats: FiveElementStat[]) => {
-  // 计算每个五行与理想比例的偏差
-  const deviations = stats.map(({ element, percentage }) => {
-    const deviation = percentage / 100 - IDEAL_RATIO; // 不取绝对值，保留正负
-    const deviationAbs = Math.abs(deviation);
-    return {
-      element,
-      deviation,
-      deviationPercentage: Math.round(deviation * 100),
-      status: deviationAbs <= 0.05 ? 'Balanced' : 
-              deviation > 0 ? (deviationAbs <= 0.1 ? 'Slightly High' : 'Excessive') :
-              deviationAbs <= 0.1 ? 'Slightly Low' : 'Insufficient'
-    };
-  });
-
-  // 计算总体失衡度
-  const totalImbalance = deviations.reduce((sum, { deviation }) => sum + Math.abs(deviation), 0) / 5;
-  const overallStatus = totalImbalance <= 0.05 ? 'Balanced' : 
-                       totalImbalance <= 0.1 ? 'Slightly High' : 'Excessive';
-
-  return {
-    deviations,
-    totalImbalance,
-    overallStatus
-  };
+          <Divider />
+          <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+            <Text strong>{t('Overall Status')}: </Text>
+            <Text type={totalImbalance <= 0.05 ? 'success' : totalImbalance <= 0.1 ? 'warning' : 'danger'} strong>
+              {t(overallStatus)} ({t('Total Deviation')}: {Math.round(totalImbalance * 100)}%)
+            </Text>
+          </div>
+        </Col>
+      </Row>
+    </Card>
+  );
 };
 
-// 计算五行统计
-const calculateFiveElementsStats = (bazi: BaziResult): FiveElementStat[] => {
-  const stats = {
-    '木': 0,
-    '火': 0,
-    '土': 0,
-    '金': 0,
-    '水': 0
-  };
-
-  // 统计所有柱中的五行
-  Object.values(bazi.fiveElements).forEach(pillar => {
-    pillar.forEach(element => {
-      stats[element as keyof typeof stats]++;
-    });
-  });
-
-  // 计算百分比
-  const total = Object.values(stats).reduce((a, b) => a + b, 0);
-  return Object.entries(stats).map(([element, count]) => ({
-    element,
-    count,
-    percentage: Math.round((count / total) * 100)
-  }));
-};
-
-// 替换所有界面显示的五行
-const FIVE_ELEMENTS_EN = {
-  '金': 'Metal',
-  '木': 'Wood',
-  '水': 'Water',
-  '火': 'Fire',
-  '土': 'Earth'
-};
-
-function getHourLabel(hour: number, t: any, i18n: any) {
-  // hour: 0-23
-  const match = CHINESE_HOURS.find(h => {
-    if (h.value === 23) return hour >= 23 || hour < 1;
-    if (h.value === 1) return hour >= 1 && hour < 3;
-    if (h.value === 3) return hour >= 3 && hour < 5;
-    if (h.value === 5) return hour >= 5 && hour < 7;
-    if (h.value === 7) return hour >= 7 && hour < 9;
-    if (h.value === 9) return hour >= 9 && hour < 11;
-    if (h.value === 11) return hour >= 11 && hour < 13;
-    if (h.value === 13) return hour >= 13 && hour < 15;
-    if (h.value === 15) return hour >= 15 && hour < 17;
-    if (h.value === 17) return hour >= 17 && hour < 19;
-    if (h.value === 19) return hour >= 19 && hour < 21;
-    if (h.value === 21) return hour >= 21 && hour < 23;
-    return false;
-  });
-  if (!match) return hour;
-  if (i18n.language === 'zh') return match.label;
-  const hourMapEn: Record<string, string> = {
-    '子': 'Zi (23:00-00:59)',
-    '丑': 'Chou (01:00-02:59)',
-    '寅': 'Yin (03:00-04:59)',
-    '卯': 'Mao (05:00-06:59)',
-    '辰': 'Chen (07:00-08:59)',
-    '巳': 'Si (09:00-10:59)',
-    '午': 'Wu (11:00-12:59)',
-    '未': 'Wei (13:00-14:59)',
-    '申': 'Shen (15:00-16:59)',
-    '酉': 'You (17:00-18:59)',
-    '戌': 'Xu (19:00-20:59)',
-    '亥': 'Hai (21:00-22:59)'
-  };
-  return hourMapEn[match.branch] || match.label;
-}
 
 function App() {
   const { t, i18n } = useTranslation();
+  const { calculateHelper, calculateFiveElementsStats, calculateImbalance } = useBazi();
+
   const [form] = Form.useForm();
   const [selectedDate, setSelectedDate] = useState<BirthDateTime | null>(null);
   const [bazi, setBazi] = useState<BaziResult | null>(null);
   const [currentBazi, setCurrentBazi] = useState<BaziResult | null>(null);
   const [days, setDays] = useState<number[]>([]);
 
-  // 生成年份选项（1900-2100）
-  const years = Array.from({ length: 201 }, (_, i) => 1900 + i);
-  
-  // 生成月份选项
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  // Years 1900-2100
+  const years = useMemo(() => Array.from({ length: 201 }, (_, i) => 1900 + i), []);
+  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
 
-  // 更新日期选项
   const updateDays = (year?: number, month?: number) => {
     if (year && month) {
       const daysInMonth = new Date(year, month, 0).getDate();
@@ -214,7 +129,6 @@ function App() {
     }
   };
 
-  // 初始化和监听表单变化
   useEffect(() => {
     const year = form.getFieldValue('year');
     const month = form.getFieldValue('month');
@@ -222,17 +136,14 @@ function App() {
   }, [form]);
 
   const handleFormChange = (changedValues: any, allValues: any) => {
-    // 如果年或月发生变化，更新日期选项
     if ('year' in changedValues || 'month' in changedValues) {
       updateDays(allValues.year, allValues.month);
-      // 如果当前选择的日期超出了新的月份的最大天数，重置日期
       const daysInMonth = new Date(allValues.year || 2000, allValues.month || 1, 0).getDate();
       if (allValues.day > daysInMonth) {
         form.setFieldValue('day', null);
       }
     }
 
-    // 更新选中的日期时间
     if (allValues.year && allValues.month && allValues.day && allValues.hour !== undefined) {
       setSelectedDate({
         year: allValues.year,
@@ -247,611 +158,102 @@ function App() {
 
   const calculateBazi = () => {
     if (!selectedDate) return;
-
     const { year, month, day, hour } = selectedDate;
-    
-    // 创建农历日期对象
-    const lunar = Lunar.fromDate(new Date(year, month - 1, day, hour));
-    
-    // 获取八字
-    const yearGanZhi = lunar.getYearInGanZhi();
-    const monthGanZhi = lunar.getMonthInGanZhi();
-    const dayGanZhi = lunar.getDayInGanZhi();
-    const timeGanZhi = lunar.getTimeInGanZhi();
-
-    // 格式化日期显示
-    const solarDateStr = `${t('Year')}: ${year}, ${t('Month')}: ${month}, ${t('Day')}: ${day}, ${t('Hour')}: ${getHourLabel(hour, t, i18n)}`;
-    const lunarDateStr = `${t('Lunar')} ${t('Year')}: ${lunar.getYearInChinese()}, ${t('Month')}: ${lunar.getMonthInChinese()}, ${t('Day')}: ${lunar.getDayInChinese()}`;
-
-    // 计算五行
-    const fiveElements = {
-      year: [FIVE_ELEMENTS_MAP[yearGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[yearGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      month: [FIVE_ELEMENTS_MAP[monthGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[monthGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      day: [FIVE_ELEMENTS_MAP[dayGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[dayGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      hour: [FIVE_ELEMENTS_MAP[timeGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[timeGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string]
-    };
-
-    setBazi({
-      year: yearGanZhi,
-      month: monthGanZhi,
-      day: dayGanZhi,
-      hour: timeGanZhi,
-      solarDate: solarDateStr,
-      lunarDate: lunarDateStr,
-      fiveElements
-    });
+    const date = new Date(year, month - 1, day, hour);
+    const result = calculateHelper(date, 'natal');
+    setBazi(result);
   };
 
-  // 计算当前时间的八字
-  const calculateCurrentBazi = () => {
+  // Current Bazi
+  const calculateCurrent = () => {
     const now = new Date();
-    const lunar = Lunar.fromDate(now);
-    
-    const yearGanZhi = lunar.getYearInGanZhi();
-    const monthGanZhi = lunar.getMonthInGanZhi();
-    const dayGanZhi = lunar.getDayInGanZhi();
-    const timeGanZhi = lunar.getTimeInGanZhi();
-    const hour = now.getHours();
-
-    const solarDateStr = `${t('Year')}: ${now.getFullYear()}, ${t('Month')}: ${now.getMonth() + 1}, ${t('Day')}: ${now.getDate()}, ${t('Hour')}: ${getHourLabel(hour, t, i18n)}`;
-    const lunarDateStr = `${t('Lunar')} ${t('Year')}: ${lunar.getYearInChinese()}, ${t('Month')}: ${lunar.getMonthInChinese()}, ${t('Day')}: ${lunar.getDayInChinese()}`;
-
-    const fiveElements = {
-      year: [FIVE_ELEMENTS_MAP[yearGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[yearGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      month: [FIVE_ELEMENTS_MAP[monthGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[monthGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      day: [FIVE_ELEMENTS_MAP[dayGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[dayGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string],
-      hour: [FIVE_ELEMENTS_MAP[timeGanZhi[0] as keyof typeof FIVE_ELEMENTS_MAP], FIVE_ELEMENTS_MAP[timeGanZhi[1] as keyof typeof FIVE_ELEMENTS_MAP]] as [string, string]
-    };
-
-    setCurrentBazi({
-      year: yearGanZhi,
-      month: monthGanZhi,
-      day: dayGanZhi,
-      hour: timeGanZhi,
-      solarDate: solarDateStr,
-      lunarDate: lunarDateStr,
-      fiveElements
-    });
+    const result = calculateHelper(now, 'current');
+    setCurrentBazi(result);
   };
 
-  // 每分钟更新当前八字
   useEffect(() => {
-    calculateCurrentBazi();
-    const timer = setInterval(calculateCurrentBazi, 60000);
+    calculateCurrent();
+    const timer = setInterval(calculateCurrent, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [calculateHelper]);
+
+  // Derived Stats
+  const natalStats = useMemo(() => bazi ? calculateFiveElementsStats(bazi) : [], [bazi, calculateFiveElementsStats]);
+  const currentStats = useMemo(() => currentBazi ? calculateFiveElementsStats(currentBazi) : [], [currentBazi, calculateFiveElementsStats]);
+
+  const natalImbalance = useMemo(() => natalStats.length ? calculateImbalance(natalStats) : { deviations: [], totalImbalance: 0, overallStatus: '' }, [natalStats, calculateImbalance]);
+  const currentImbalance = useMemo(() => currentStats.length ? calculateImbalance(currentStats) : { deviations: [], totalImbalance: 0, overallStatus: '' }, [currentStats, calculateImbalance]);
+
+  // Combined Analysis
+  const combinedStats = useMemo(() => {
+    if (!natalStats.length || !currentStats.length) return [];
+    return natalStats.map(({ element }) => {
+      const birthElement = natalStats.find(stat => stat.element === element);
+      const currentElement = currentStats.find(stat => stat.element === element);
+      const totalCount = (birthElement?.count || 0) + (currentElement?.count || 0);
+      return {
+        element,
+        count: totalCount,
+        percentage: Math.round((totalCount / 16) * 100)
+      };
+    });
+  }, [natalStats, currentStats]);
+
+  const combinedImbalance = useMemo(() => combinedStats.length ? calculateImbalance(combinedStats) : { deviations: [], totalImbalance: 0, overallStatus: '' }, [combinedStats, calculateImbalance]);
 
   return (
     <Layout className="layout">
-      <Header style={{ background: '#fff', padding: '0 50px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Title level={2} style={{ margin: '16px 0', textAlign: 'center' }}>{t('Bazi Calculator')}</Title>
+      <Header style={{ background: 'rgba(255, 255, 255, 0.4)', padding: '0 50px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px', backdropFilter: 'blur(10px)' }}>
+        <Title level={2} style={{ margin: 0, fontFamily: 'Noto Serif SC', color: '#1f1f1f' }}>{t('Bazi Calculator')}</Title>
         <div>
-          <button onClick={() => i18n.changeLanguage('en')} style={{ marginRight: 8 }}>English</button>
-          <button onClick={() => i18n.changeLanguage('zh')}>中文</button>
+          <button onClick={() => i18n.changeLanguage('en')} style={{ marginRight: 8, cursor: 'pointer', background: 'transparent', border: '1px solid #333', borderRadius: '4px', padding: '4px 8px' }}>English</button>
+          <button onClick={() => i18n.changeLanguage('zh')} style={{ cursor: 'pointer', background: 'transparent', border: '1px solid #333', borderRadius: '4px', padding: '4px 8px' }}>中文</button>
         </div>
       </Header>
-      <Content style={{ padding: '24px 32px', minHeight: '80vh', background: '#f0f2f5', maxWidth: '1600px', margin: '0 auto' }}>
-        <Row gutter={[24, 24]}>
-          {/* 左侧面板 */}
-          <Col span={12} style={{ minWidth: '700px' }}>
-            <Card bordered={false} style={{ height: '100%' }}>
-              <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                <Title level={3} style={{ margin: '0 0 24px 0', textAlign: 'center' }}>{t('Natal Bazi')}</Title>
-                
-                {/* 日期时辰选择区域 */}
-                <Card title={t('Birth Date & Time')} bordered={false} style={{ marginBottom: '24px' }}>
-                  <Form
-                    form={form}
-                    onValuesChange={handleFormChange}
-                    layout="horizontal"
-                    style={{ maxWidth: '100%' }}
-                  >
-                    <Row gutter={[16, 16]}>
-                      <Col span={12}>
-                        <Form.Item
-                          name="year"
-                          label={<span style={{ minWidth: '32px', display: 'inline-block' }}>{t('Year')}</span>}
-                          rules={[{ required: true, message: t('Please select year') }]}
-                        >
-                          <Select 
-                            placeholder={t('Select year')} 
-                            showSearch
-                            listHeight={200}
-                            style={{ width: '100%', minWidth: '180px' }}
-                            dropdownMatchSelectWidth={false}
-                          >
-                            {years.map(year => (
-                              <Select.Option key={year} value={year}>{year}</Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item
-                          name="month"
-                          label={<span style={{ minWidth: '32px', display: 'inline-block' }}>{t('Month')}</span>}
-                          rules={[{ required: true, message: t('Please select month') }]}
-                        >
-                          <Select 
-                            placeholder={t('Select month')}
-                            listHeight={200}
-                            style={{ width: '100%', minWidth: '180px' }}
-                            dropdownMatchSelectWidth={false}
-                          >
-                            {months.map(month => (
-                              <Select.Option key={month} value={month}>{month}</Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item
-                          name="day"
-                          label={<span style={{ minWidth: '32px', display: 'inline-block' }}>{t('Day')}</span>}
-                          rules={[{ required: true, message: t('Please select day') }]}
-                        >
-                          <Select 
-                            placeholder={t('Select day')} 
-                            disabled={days.length === 0}
-                            listHeight={200}
-                            style={{ width: '100%', minWidth: '180px' }}
-                            dropdownMatchSelectWidth={false}
-                          >
-                            {days.map(day => (
-                              <Select.Option key={day} value={day}>{day}</Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item
-                          name="hour"
-                          label={<span style={{ minWidth: '32px', display: 'inline-block' }}>{t('Hour')}</span>}
-                          rules={[{ required: true, message: t('Please select hour') }]}
-                        >
-                          <Select 
-                            placeholder={t('Select hour')}
-                            listHeight={200}
-                            style={{ width: '100%', minWidth: '180px' }}
-                            dropdownMatchSelectWidth={false}
-                          >
-                            {CHINESE_HOURS.map(hour => (
-                              <Select.Option key={hour.branch} value={hour.value}>
-                                {hour.label}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                  </Form>
-                </Card>
+      <Content style={{ padding: '24px 32px', minHeight: 'calc(100vh - 64px)' }}>
+        <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
+              <NatalSection
+                years={years}
+                months={months}
+                days={days}
+                bazi={bazi}
+                onCalculate={calculateBazi}
+                onFormChange={handleFormChange}
+                form={form}
+                selectedDate={selectedDate}
+                fiveElementStats={natalStats}
+                imbalance={natalImbalance}
+              />
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card bordered={false} style={{ height: '100%', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '16px', backdropFilter: 'blur(20px)' }}>
+                <CurrentSection
+                  currentBazi={currentBazi}
+                  stats={currentStats}
+                  imbalance={currentImbalance}
+                />
 
-                <Button 
-                  type="primary" 
-                  size="large" 
-                  onClick={calculateBazi}
-                  disabled={!selectedDate}
-                  style={{ width: '200px', margin: '0 auto 24px', display: 'block' }}
-                >
-                  {t('Generate Natal Bazi')}
-                </Button>
-
-                {/* 八字显示区域 */}
-                {bazi && (
-                  <>
-                    <Card title={t('Bazi')} bordered={false} style={{ marginBottom: '24px' }}>
-                      <Row gutter={[16, 16]}>
-                        <Col span={6}>
-                          <Card title={t('Year Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{bazi.year[0]}{bazi.year[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {bazi.fiveElements.year.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Month Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{bazi.month[0]}{bazi.month[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {bazi.fiveElements.month.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Day Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{bazi.day[0]}{bazi.day[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {bazi.fiveElements.day.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Hour Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{bazi.hour[0]}{bazi.hour[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {bazi.fiveElements.hour.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                      </Row>
-                    </Card>
-
-                    {/* 五行统计 */}
-                    <Card title={t('Five Elements Analysis')} bordered={false}>
-                      <Row gutter={[16, 16]}>
-                        {/* 五行分布 */}
-                        <Col span={24}>
-                          <Title level={5}>{t('Element Distribution')}</Title>
-                          {calculateFiveElementsStats(bazi).map(({ element, count, percentage }) => (
-                            <div key={element} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                              <Text strong style={{ width: '60px' }}>{t(FIVE_ELEMENTS_EN[element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                              <div style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: '12px',
-                                minHeight: '24px',
-                                padding: '2px 8px',
-                                marginRight: '8px'
-                              }}>
-                                {Array.from({ length: count }).map((_, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      width: '12px',
-                                      height: '12px',
-                                      backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                      borderRadius: '50%',
-                                      marginRight: '4px',
-                                      display: 'inline-block'
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                              <Text style={{ minWidth: '80px' }}>{count} ({percentage}%)</Text>
-                            </div>
-                          ))}
-                        </Col>
-
-                        {/* 五行失衡分析 */}
-                        <Col span={24}>
-                          <Title level={5} style={{ marginTop: '16px' }}>{t('Imbalance Analysis')}</Title>
-                          {(() => {
-                            const stats = calculateFiveElementsStats(bazi);
-                            const { deviations, totalImbalance, overallStatus } = calculateImbalance(stats);
-                            return (
-                              <>
-                                <div style={{ marginBottom: '16px' }}>
-                                  <Text strong>{t('Overall Status')}: </Text>
-                                  <Text type={totalImbalance <= 0.05 ? 'success' : totalImbalance <= 0.1 ? 'warning' : 'danger'}>
-                                    {t(overallStatus)} ({t('Deviation')}: {Math.round(totalImbalance * 100)}%)
-                                  </Text>
-                                </div>
-                                {deviations.map(({ element, deviation, deviationPercentage, status }) => {
-                                  const elementStat = stats.find(s => s.element === element);
-                                  if (!elementStat) return null;
-                                  return (
-                                    <div key={element} style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
-                                      <Text style={{ width: '60px', display: 'inline-block' }}>{t(FIVE_ELEMENTS_EN[element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                                      <div style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        backgroundColor: '#f5f5f5',
-                                        borderRadius: '12px',
-                                        minHeight: '24px',
-                                        padding: '2px 8px',
-                                        marginRight: '8px'
-                                      }}>
-                                        {Array.from({ length: elementStat.count }).map((_, index) => (
-                                          <div
-                                            key={index}
-                                            style={{
-                                              width: '12px',
-                                              height: '12px',
-                                              backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                              borderRadius: '50%',
-                                              marginRight: '4px',
-                                              display: 'inline-block'
-                                            }}
-                                          />
-                                        ))}
-                                      </div>
-                                      <Text type={status === 'Balanced' ? 'success' : 
-                                               (status === 'Slightly High' || status === 'Slightly Low') ? 'warning' : 'danger'}
-                                            style={{ minWidth: '120px' }}>
-                                        {t(status)} ({deviationPercentage > 0 ? '+' : ''}{deviationPercentage}%)
-                                      </Text>
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            );
-                          })()}
-                        </Col>
-                      </Row>
-                    </Card>
-                  </>
-                )}
-              </Space>
-            </Card>
-          </Col>
-
-          {/* 右侧面板 */}
-          <Col span={12} style={{ minWidth: '700px' }}>
-            <Card bordered={false} style={{ height: '100%' }}>
-              <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                <Title level={3} style={{ margin: '0 0 24px 0', textAlign: 'center' }}>{t('Current Bazi')}</Title>
-                
-                {/* 当前时间显示 */}
-                <Card title={t('Current Date & Time')} bordered={false} style={{ marginBottom: '24px', minHeight: '183px' }}>
-                  {currentBazi && (
-                    <Row>
-                      <Col span={24}>
-                        <Text strong style={{ fontSize: '16px' }}>{currentBazi.solarDate}</Text>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: '14px' }}>{currentBazi.lunarDate}</Text>
-                      </Col>
-                    </Row>
-                  )}
-                </Card>
-
-                <div style={{ height: '76px' }}></div>
-
-                {/* 八字显示区域 */}
-                {currentBazi && (
-                  <>
-                    <Card title={t('Bazi')} bordered={false} style={{ marginBottom: '24px' }}>
-                      <Row gutter={[16, 16]}>
-                        <Col span={6}>
-                          <Card title={t('Year Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{currentBazi.year[0]}{currentBazi.year[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {currentBazi.fiveElements.year.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Month Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{currentBazi.month[0]}{currentBazi.month[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {currentBazi.fiveElements.month.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Day Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{currentBazi.day[0]}{currentBazi.day[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {currentBazi.fiveElements.day.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                        <Col span={6}>
-                          <Card title={t('Hour Pillar')} bordered={false} size="small" style={{ minHeight: '120px' }}>
-                            <Text strong style={{ fontSize: '16px' }}>{currentBazi.hour[0]}{currentBazi.hour[1]}</Text>
-                            <br />
-                            <Text type="secondary">{t('Element')}: {currentBazi.fiveElements.hour.map(e => t(FIVE_ELEMENTS_EN[e as keyof typeof FIVE_ELEMENTS_EN])).join('/')}</Text>
-                          </Card>
-                        </Col>
-                      </Row>
-                    </Card>
-
-                    {/* 五行统计 - 右侧面板 */}
-                    <Card title={t('Five Elements Analysis')} bordered={false}>
-                      <Row gutter={[16, 16]}>
-                        {/* 五行分布 */}
-                        <Col span={24}>
-                          <Title level={5}>{t('Element Distribution')}</Title>
-                          {calculateFiveElementsStats(currentBazi).map(({ element, count, percentage }) => (
-                            <div key={element} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                              <Text strong style={{ width: '60px' }}>{t(FIVE_ELEMENTS_EN[element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                              <div style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: '12px',
-                                minHeight: '24px',
-                                padding: '2px 8px',
-                                marginRight: '8px'
-                              }}>
-                                {Array.from({ length: count }).map((_, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      width: '12px',
-                                      height: '12px',
-                                      backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                      borderRadius: '50%',
-                                      marginRight: '4px',
-                                      display: 'inline-block'
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                              <Text style={{ minWidth: '80px' }}>{count} ({percentage}%)</Text>
-                            </div>
-                          ))}
-                        </Col>
-
-                        {/* 五行失衡分析 */}
-                        <Col span={24}>
-                          <Title level={5} style={{ marginTop: '16px' }}>{t('Imbalance Analysis')}</Title>
-                          {(() => {
-                            const stats = calculateFiveElementsStats(currentBazi);
-                            const { deviations, totalImbalance, overallStatus } = calculateImbalance(stats);
-                            return (
-                              <>
-                                <div style={{ marginBottom: '16px' }}>
-                                  <Text strong>{t('Overall Status')}: </Text>
-                                  <Text type={totalImbalance <= 0.05 ? 'success' : totalImbalance <= 0.1 ? 'warning' : 'danger'}>
-                                    {t(overallStatus)} ({t('Deviation')}: {Math.round(totalImbalance * 100)}%)
-                                  </Text>
-                                </div>
-                                {deviations.map(({ element, deviation, deviationPercentage, status }) => {
-                                  const elementStat = stats.find(s => s.element === element);
-                                  if (!elementStat) return null;
-                                  return (
-                                    <div key={element} style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
-                                      <Text style={{ width: '60px', display: 'inline-block' }}>{t(FIVE_ELEMENTS_EN[element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                                      <div style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        backgroundColor: '#f5f5f5',
-                                        borderRadius: '12px',
-                                        minHeight: '24px',
-                                        padding: '2px 8px',
-                                        marginRight: '8px'
-                                      }}>
-                                        {Array.from({ length: elementStat.count }).map((_, index) => (
-                                          <div
-                                            key={index}
-                                            style={{
-                                              width: '12px',
-                                              height: '12px',
-                                              backgroundColor: FIVE_ELEMENTS_COLORS[element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                              borderRadius: '50%',
-                                              marginRight: '4px',
-                                              display: 'inline-block'
-                                            }}
-                                          />
-                                        ))}
-                                      </div>
-                                      <Text type={status === 'Balanced' ? 'success' : 
-                                               (status === 'Slightly High' || status === 'Slightly Low') ? 'warning' : 'danger'}
-                                            style={{ minWidth: '120px' }}>
-                                        {t(status)} ({deviationPercentage > 0 ? '+' : ''}{deviationPercentage}%)
-                                      </Text>
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            );
-                          })()}
-                        </Col>
-                      </Row>
-                    </Card>
-
-                    {/* 先天与当下五行总和分析 */}
-                    {bazi && currentBazi && (
-                      <Card title={t('Combined Five Elements Analysis')} bordered={false} style={{ marginTop: '24px' }}>
-                        <Row gutter={[16, 16]}>
-                          <Col span={24}>
-                            {(() => {
-                              const birthStats = calculateFiveElementsStats(bazi);
-                              const currentStats = calculateFiveElementsStats(currentBazi);
-                              // 计算总和
-                              const combinedStats = birthStats.map(({ element }) => {
-                                const birthElement = birthStats.find(stat => stat.element === element);
-                                const currentElement = currentStats.find(stat => stat.element === element);
-                                const totalCount = (birthElement?.count || 0) + (currentElement?.count || 0);
-                                return {
-                                  element,
-                                  count: totalCount,
-                                  percentage: Math.round((totalCount / 16) * 100) // 总共16个五行
-                                };
-                              });
-                              const { deviations, totalImbalance, overallStatus } = calculateImbalance(combinedStats);
-                              return (
-                                <>
-                                  <Title level={5}>{t('Element Distribution')}</Title>
-                                  {combinedStats.map(stat => {
-                                    const deviation = deviations.find(d => d.element === stat.element);
-                                    const birthElement = birthStats.find(s => s.element === stat.element);
-                                    const currentElement = currentStats.find(s => s.element === stat.element);
-                                    if (!deviation || !birthElement || !currentElement) return null;
-                                    return (
-                                      <div key={stat.element} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                        <Text strong style={{ width: '60px' }}>{t(FIVE_ELEMENTS_EN[stat.element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                                        <div style={{
-                                          flex: 1,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          backgroundColor: '#f5f5f5',
-                                          borderRadius: '12px',
-                                          minHeight: '24px',
-                                          padding: '2px 8px',
-                                          marginRight: '8px'
-                                        }}>
-                                          {/* 先天点（圆形） */}
-                                          {Array.from({ length: birthElement.count }).map((_, idx) => (
-                                            <div
-                                              key={`birth-${idx}`}
-                                              style={{
-                                                width: '12px',
-                                                height: '12px',
-                                                backgroundColor: FIVE_ELEMENTS_COLORS[stat.element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                                borderRadius: '50%',
-                                                marginRight: '4px',
-                                                display: 'inline-block'
-                                              }}
-                                            />
-                                          ))}
-                                          {/* 当下点（方形） */}
-                                          {Array.from({ length: currentElement.count }).map((_, idx) => (
-                                            <div
-                                              key={`current-${idx}`}
-                                              style={{
-                                                width: '12px',
-                                                height: '12px',
-                                                backgroundColor: FIVE_ELEMENTS_COLORS[stat.element as keyof typeof FIVE_ELEMENTS_COLORS],
-                                                borderRadius: '0',
-                                                marginRight: '4px',
-                                                display: 'inline-block'
-                                              }}
-                                            />
-                                          ))}
-                                        </div>
-                                        <Text style={{ minWidth: '120px' }}>
-                                          {stat.count} ({deviation.deviationPercentage > 0 ? '+' : ''}{deviation.deviationPercentage}%)
-                                          <br />
-                                          <Text type="secondary" style={{ fontSize: '12px' }}>
-                                            {t('Natal Bazi')}: {birthElement.count} | {t('Current Bazi')}: {currentElement.count}
-                                          </Text>
-                                        </Text>
-                                      </div>
-                                    );
-                                  })}
-
-                                  <Divider />
-                                  <Title level={5}>{t('Overall Imbalance Analysis')}</Title>
-                                  <div style={{ marginBottom: '16px' }}>
-                                    <Text strong>{t('Overall Status')}: </Text>
-                                    <Text type={totalImbalance <= 0.05 ? 'success' : totalImbalance <= 0.1 ? 'warning' : 'danger'}>
-                                      {t(overallStatus)} ({t('Total Deviation')}: {Math.round(totalImbalance * 100)}%)
-                                    </Text>
-                                  </div>
-                                  {deviations.map(({ element, deviationPercentage, status }) => (
-                                    <div key={element} style={{ marginBottom: '16px' }}>
-                                      <Text style={{ width: '60px' }}>{t(FIVE_ELEMENTS_EN[element as keyof typeof FIVE_ELEMENTS_EN])}:</Text>
-                                      <Text type={status === 'Balanced' ? 'success' : 
-                                               (status === 'Slightly High' || status === 'Slightly Low') ? 'warning' : 'danger'}>
-                                        {t(status)} ({deviationPercentage > 0 ? '+' : ''}{deviationPercentage}%)
-                                      </Text>
-                                    </div>
-                                  ))}
-                                </>
-                              );
-                            })()}
-                          </Col>
-                        </Row>
-                      </Card>
-                    )}
-                    
-                    {/* 能量DNA图谱 */}
-                    {bazi && currentBazi && (
+                {bazi && currentBazi && (
+                  <div className="animate-fade-in">
+                    <CombinedAnalysis
+                      birthStats={natalStats}
+                      currentStats={currentStats}
+                      imbalance={combinedImbalance}
+                    />
+                    <div style={{ marginTop: '24px' }}>
                       <EnergyDNA
-                        birthStats={calculateFiveElementsStats(bazi)}
-                        currentStats={calculateFiveElementsStats(currentBazi)}
+                        birthStats={natalStats}
+                        currentStats={currentStats}
                       />
-                    )}
-                  </>
+                    </div>
+                  </div>
                 )}
-              </Space>
-            </Card>
-          </Col>
-        </Row>
+              </Card>
+            </Col>
+          </Row>
+        </div>
       </Content>
     </Layout>
   );

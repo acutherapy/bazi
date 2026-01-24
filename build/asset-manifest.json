@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/bazi-i18n/static/css/main.0a9a131b.css",
-    "main.js": "/bazi-i18n/static/js/main.b9208c7a.js",
-    "static/js/453.667a3331.chunk.js": "/bazi-i18n/static/js/453.667a3331.chunk.js",
-    "index.html": "/bazi-i18n/index.html",
-    "main.0a9a131b.css.map": "/bazi-i18n/static/css/main.0a9a131b.css.map",
-    "main.b9208c7a.js.map": "/bazi-i18n/static/js/main.b9208c7a.js.map",
-    "453.667a3331.chunk.js.map": "/bazi-i18n/static/js/453.667a3331.chunk.js.map"
+    "main.css": "/bazi/static/css/main.69250760.css",
+    "main.js": "/bazi/static/js/main.625781d3.js",
+    "static/js/453.667a3331.chunk.js": "/bazi/static/js/453.667a3331.chunk.js",
+    "index.html": "/bazi/index.html",
+    "main.69250760.css.map": "/bazi/static/css/main.69250760.css.map",
+    "main.625781d3.js.map": "/bazi/static/js/main.625781d3.js.map",
+    "453.667a3331.chunk.js.map": "/bazi/static/js/453.667a3331.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.0a9a131b.css",
-    "static/js/main.b9208c7a.js"
+    "static/css/main.69250760.css",
+    "static/js/main.625781d3.js"
   ]
 }
